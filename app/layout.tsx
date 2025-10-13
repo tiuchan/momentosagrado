@@ -24,6 +24,10 @@ export const metadata: Metadata = {
     shortcut: "/favicon.ico", // atalho para navegadores antigos
     apple: "/favicon.png", // ícone para Apple devices
   },
+  manifest: {
+    name: "Momento Sagrado",       // nome completo do PWA
+    short_name: "Momento Sagrado", // nome do atalho com espaços
+  },
 }
 
 export default function RootLayout({
