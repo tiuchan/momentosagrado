@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getAvailableThemes, getVerseCount, getRandomVersesFromAll } from "@/lib/verses"
+import { getAvailableThemes, getVerseCount, getRandomVersesFromAll, getRandomVerses } from "@/lib/verses"
 
 function detectGender(message: string): "feminine" | "masculine" | "neutral" {
   const lowerMessage = message.toLowerCase()
@@ -28,6 +28,51 @@ function detectGender(message: string): "feminine" | "masculine" | "neutral" {
   return "neutral"
 }
 
+function detectTheme(message: string): string | null {
+  const lowerMessage = message.toLowerCase()
+
+  // Theme detection patterns
+  const themePatterns: Record<string, RegExp[]> = {
+    cansaco: [
+      /\b(cansad[oa]|exaust[oa]|fatigad[oa]|esgotad[oa]|sem\s+energia|sem\s+forças)\b/,
+      /\bestou\s+cansad[oa]\b/,
+      /\bme\s+sinto\s+cansad[oa]\b/,
+      /\bpreciso\s+de\s+descanso\b/,
+    ],
+    ansiedade: [
+      /\b(ansios[oa]|preocupad[oa]|nervos[oa]|estressad[oa]|angustiad[oa])\b/,
+      /\bestou\s+ansios[oa]\b/,
+      /\bme\s+sinto\s+ansios[oa]\b/,
+      /\bansiedade\b/,
+    ],
+    alegria: [
+      /\b(alegr[ea]|feliz|contente|grat[oa]|celebr)\b/,
+      /\bestou\s+feliz\b/,
+      /\bquero\s+celebrar\b/,
+      /\balegria\b/,
+    ],
+    medo: [/\b(medo|assustad[oa]|amedrontad[oa]|temor|receios[oa])\b/, /\bestou\s+com\s+medo\b/, /\btenho\s+medo\b/],
+    solidao: [
+      /\b(sozinho|sozinha|solid[ãa]o|isolad[oa]|abandonad[oa])\b/,
+      /\bestou\s+sozinho\b/,
+      /\bme\s+sinto\s+s[óo]\b/,
+    ],
+    fe: [/\b(f[ée]|cren[çc]a|acreditar|confian[çc]a\s+em\s+deus)\b/, /\bfortalecer\s+minha\s+f[ée]\b/],
+    esperanca: [/\b(esperan[çc]a|esperan[çc]oso|futuro|renova[çc][ãa]o)\b/, /\bpreciso\s+de\s+esperan[çc]a\b/],
+    amor: [/\b(amor|amad[oa]|amar|carinho)\b/, /\bamor\s+de\s+deus\b/],
+    gratidao: [/\b(gratid[ãa]o|grat[oa]|agradecer|obrigad[oa])\b/, /\bexpresar\s+gratid[ãa]o\b/],
+  }
+
+  // Check each theme pattern
+  for (const [theme, patterns] of Object.entries(themePatterns)) {
+    if (patterns.some((pattern) => pattern.test(lowerMessage))) {
+      return theme
+    }
+  }
+
+  return null
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { message, conversationHistory, isCardSelection } = await request.json()
@@ -43,9 +88,15 @@ export async function POST(request: NextRequest) {
     const isDailyMessage =
       message.toLowerCase().includes("mensagem diária") || message.toLowerCase().includes("mensagem diaria")
 
+    const detectedTheme = detectTheme(message)
+
     let selectedVerses = ""
     if (isDailyMessage) {
-      const verses = getRandomVersesFromAll(2) // Get 2 random verses from entire database
+      const verses = getRandomVersesFromAll(2)
+      selectedVerses = verses.map((v) => `"${v.text}" (${v.ref})`).join("\n\n")
+    } else if (detectedTheme) {
+      // Select 3-4 random verses from the detected theme
+      const verses = getRandomVerses(detectedTheme, 4)
       selectedVerses = verses.map((v) => `"${v.text}" (${v.ref})`).join("\n\n")
     }
 
@@ -59,20 +110,24 @@ BANCO DE VERSÍCULOS DISPONÍVEL:
 Você tem acesso a um extenso banco de versículos organizados por temas: ${verseStats}
 
 ${
-  isDailyMessage
+  isDailyMessage || detectedTheme
     ? `
-⚠️ MENSAGEM DIÁRIA - USE ESTES VERSÍCULOS ESPECÍFICOS ⚠️
-Você DEVE usar um ou ambos os versículos abaixo na sua resposta. Estes foram selecionados aleatoriamente do banco de dados:
+⚠️ ${isDailyMessage ? "MENSAGEM DIÁRIA" : `TEMA DETECTADO: ${detectedTheme?.toUpperCase()}`} - USE ESTES VERSÍCULOS ESPECÍFICOS ⚠️
+Você DEVE escolher e usar UM ou MAIS dos versículos abaixo na sua resposta. Estes foram selecionados ALEATORIAMENTE do banco de dados:
 
 ${selectedVerses}
 
-IMPORTANTE: Cite o versículo EXATAMENTE como está acima, incluindo a referência.
+IMPORTANTE: 
+- Escolha ALEATORIAMENTE qual(is) versículo(s) usar - NÃO use sempre o primeiro!
+- Cite o versículo EXATAMENTE como está acima, incluindo a referência.
+- Varie sua escolha a cada conversa - use versículos diferentes mesmo para o mesmo tema!
 `
     : ""
 }
 
 ⚠️ REGRA CRÍTICA DE VARIAÇÃO ⚠️
 NUNCA repita os mesmos versículos! A cada nova conversa, você DEVE escolher versículos DIFERENTES, mesmo que o tema seja similar. Explore toda a riqueza da Bíblia disponível no banco de dados.
+${detectedTheme ? `\n🎯 Para o tema "${detectedTheme}", você tem ${getVerseCount(detectedTheme)} versículos disponíveis - USE DIFERENTES A CADA VEZ!` : ""}
 
 🎯 DETECÇÃO DE GÊNERO IDENTIFICADO: ${detectedGender === "feminine" ? "FEMININO" : detectedGender === "masculine" ? "MASCULINO" : "NEUTRO/UNIVERSAL"}
 ${isCardSelection ? "⚠️ ATENÇÃO: Esta mensagem veio de um CARD da tela inicial - use linguagem NEUTRA e UNIVERSAL!" : ""}
