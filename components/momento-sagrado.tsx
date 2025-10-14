@@ -3,9 +3,12 @@
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Share2, Loader2, Send, Download, Sparkles } from "lucide-react"
+import { Share2, Loader2, Send, Download, Sparkles, Home, Settings, Copy, Filter } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { getRandomThemes, type Theme } from "@/lib/themes"
+import { SettingsPanel } from "@/components/settings-panel"
+import { loadPreferences, savePreferences, type UserPreferences } from "@/lib/preferences"
+import { getGreeting } from "@/lib/greetings"
 
 interface Message {
   role: "user" | "assistant"
@@ -17,12 +20,30 @@ interface ShareContent {
   summary: string
 }
 
+interface EmotionOption {
+  label: string
+  emoji: string
+  prompt: string
+}
+
+const emotionOptions: EmotionOption[] = [
+  { label: "Fé", emoji: "🙏", prompt: "Preciso fortalecer minha fé" },
+  { label: "Esperança", emoji: "🌅", prompt: "Preciso de esperança" },
+  { label: "Medo", emoji: "😟", prompt: "Estou com medo" },
+  { label: "Amor", emoji: "❤️", prompt: "Preciso sentir o amor de Deus" },
+  { label: "Solidão", emoji: "🌧️", prompt: "Estou me sentindo sozinho" },
+  { label: "Gratidão", emoji: "🌻", prompt: "Quero expressar gratidão" },
+  { label: "Ansiedade", emoji: "😰", prompt: "Estou ansioso" },
+  { label: "Alegria", emoji: "😊", prompt: "Quero celebrar com alegria" },
+  { label: "Cansaço", emoji: "😴", prompt: "Estou cansado" },
+]
+
 export function MomentoSagrado() {
-  const [quickActions, setQuickActions] = useState<Theme[]>([])
+  const [quickActions, setQuickActions] = useState<Theme[]>(() => getRandomThemes(4))
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Olá! Como posso te ajudar a encontrar conforto hoje?",
+      content: getGreeting().message,
     },
   ])
   const [input, setInput] = useState("")
@@ -31,14 +52,31 @@ export function MomentoSagrado() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   const [currentBgImage, setCurrentBgImage] = useState(`https://picsum.photos/1080/1920?random=${Date.now()}`)
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
-  const [activeTab, setActiveTab] = useState<"chat" | "moments" | "settings">("chat")
+  const [showHome, setShowHome] = useState(true)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [preferences, setPreferences] = useState<UserPreferences>(loadPreferences())
+  const [showEmotionFilter, setShowEmotionFilter] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { toast } = useToast()
 
   useEffect(() => {
-    setQuickActions(getRandomThemes(4))
-  }, [])
+    const root = document.documentElement
+
+    if (preferences.theme === "dark") {
+      root.classList.add("dark")
+    } else if (preferences.theme === "light") {
+      root.classList.remove("dark")
+    } else {
+      // System preference
+      const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      if (isDark) {
+        root.classList.add("dark")
+      } else {
+        root.classList.remove("dark")
+      }
+    }
+  }, [preferences.theme])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -112,22 +150,25 @@ export function MomentoSagrado() {
 
   const handleQuickAction = (prompt: string) => {
     setInput(prompt)
-    setTimeout(() => handleSend(prompt), 100)
+    setShowHome(false)
+    setTimeout(() => handleSend(prompt, true), 100)
   }
 
   const handleDailyMessage = () => {
     const dailyPrompt = "Quero receber minha mensagem diária de inspiração"
     setInput(dailyPrompt)
-    setTimeout(() => handleSend(dailyPrompt), 100)
+    setShowHome(false)
+    setTimeout(() => handleSend(dailyPrompt, true), 100)
   }
 
-  const handleSend = async (customMessage?: string) => {
+  const handleSend = async (customMessage?: string, isCardSelection = false) => {
     const messageToSend = customMessage || input.trim()
     if (!messageToSend || isLoading) return
 
     if (!customMessage) setInput("")
     setMessages((prev) => [...prev, { role: "user", content: messageToSend }])
     setIsLoading(true)
+    setShowHome(false)
 
     try {
       const response = await fetch("/api/chat", {
@@ -138,6 +179,7 @@ export function MomentoSagrado() {
         body: JSON.stringify({
           message: messageToSend,
           conversationHistory: messages,
+          isCardSelection,
         }),
       })
 
@@ -168,6 +210,18 @@ export function MomentoSagrado() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleGoHome = () => {
+    setShowHome(true)
+    setMessages([
+      {
+        role: "assistant",
+        content: getGreeting().message,
+      },
+    ])
+    setShareContent(null)
+    setQuickActions(getRandomThemes(4))
   }
 
   const generateShareImage = async () => {
@@ -279,7 +333,27 @@ export function MomentoSagrado() {
     return y + lineHeight
   }
 
-  const handleShare = async () => {
+  const openShareModal = async () => {
+    if (!shareContent) {
+      toast({
+        title: "Nenhum conteúdo",
+        description: "Nenhum trecho para compartilhar ainda.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsShareModalOpen(true)
+    setTimeout(() => generateShareImage(), 100)
+  }
+
+  const changeBackground = () => {
+    const newImage = `https://picsum.photos/1080/1920?random=${Date.now()}`
+    setCurrentBgImage(newImage)
+    setTimeout(() => generateShareImage(), 100)
+  }
+
+  const handleShareImage = async () => {
     if (!canvasRef.current) return
 
     try {
@@ -322,83 +396,137 @@ export function MomentoSagrado() {
     }
   }
 
-  const openShareModal = async () => {
-    if (!shareContent) {
-      toast({
-        title: "Nenhum conteúdo",
-        description: "Nenhum trecho para compartilhar ainda.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsShareModalOpen(true)
-    setTimeout(() => generateShareImage(), 100)
+  const handleCopyMessage = (content: string) => {
+    navigator.clipboard.writeText(content)
+    toast({
+      title: "Copiado!",
+      description: "Mensagem copiada para a área de transferência.",
+    })
   }
 
-  const changeBackground = () => {
-    const newImage = `https://picsum.photos/1080/1920?random=${Date.now()}`
-    setCurrentBgImage(newImage)
-    setTimeout(() => generateShareImage(), 100)
+  const handleEmotionSelect = (prompt: string) => {
+    setShowEmotionFilter(false)
+    setInput(prompt)
+    setShowHome(false)
+    setTimeout(() => handleSend(prompt, true), 100)
+  }
+
+  const getFontSizeClass = () => {
+    switch (preferences.fontSize) {
+      case "small":
+        return "text-xs"
+      case "large":
+        return "text-base"
+      default:
+        return "text-sm"
+    }
   }
 
   return (
     <div className="flex h-screen items-center justify-center bg-background">
       <div className="w-full max-w-md h-full flex flex-col shadow-2xl bg-background">
         {/* Header */}
-        <div className="sticky top-0 z-10 border-b border-primary/10 bg-background/95 backdrop-blur-sm">
-          <div className="flex items-center justify-center p-4">
-            <div className="text-center">
-              <h1 className="text-lg font-bold text-foreground">Momento Sagrado</h1>
-              <p className="text-sm text-muted-foreground">Seu momento de reflexão</p>
+        <div className="sticky top-0 z-10 border-b border-border/50 bg-background/95 backdrop-blur-sm">
+          <div className="flex items-center justify-between p-4">
+            {!showHome && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleGoHome}
+                className="shrink-0 hover:bg-primary/5"
+                aria-label="Voltar para início"
+              >
+                <Home className="w-5 h-5" />
+              </Button>
+            )}
+            {showHome && <div className="w-10" />}
+            <div className="text-center flex-1">
+              <h1 className="text-lg font-semibold text-foreground tracking-tight">Momento Sagrado</h1>
+              <p className="text-xs text-muted-foreground">Seu momento de reflexão</p>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsSettingsOpen(true)}
+              className="shrink-0 hover:bg-primary/5"
+              aria-label="Configurações"
+            >
+              <Settings className="w-5 h-5" />
+            </Button>
           </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-6 pt-6 pb-4">
-          {/* Assistant Avatar and Initial Message */}
+        <div className="flex-1 overflow-y-auto px-6 pt-6 pb-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <div className="flex items-start gap-3 mb-6">
-            <div
-              className="w-10 h-10 shrink-0 rounded-full bg-cover bg-center"
-              style={{
-                backgroundImage:
-                  'url("https://lh3.googleusercontent.com/aida-public/AB6AXuAjHjWz8I-HLu6MEGnIcKeQZPvajYHHbHdtP512kvfvdNBmA1WLvuKao9JbnLW1t5DTj_lz8iR0-QrQyQDWD75_TjdbVLvclWsmCnOlMV1XxKDC-hacXbOPlWelNgv91VrBGZxPo0_EKh4jaV5JLfJHjyFXXCII5bFoThw_pqUKBZ6E0Ww-cE4ILN7ny-lgIpd0lnycmqOzHvdhym-WIapqh4oQSyYoQnv0w4Xh2yD2TI2mXyKhZ_1e3cogm8Hc1rLwohnTkrLG764")',
-              }}
-            />
+            <div className="w-10 h-10 shrink-0 rounded-full bg-primary/5 flex items-center justify-center border border-primary/10">
+              <Sparkles className="w-6 h-6 text-primary" strokeWidth={1.5} />
+            </div>
             <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Momento Sagrado</span>
-              <div className="rounded-2xl bg-primary/10 px-4 py-3 text-foreground">
-                <p className="text-sm">{messages[0].content}</p>
+              <span className="text-xs font-medium text-muted-foreground">Momento Sagrado</span>
+              <div className="rounded-2xl bg-muted/50 px-4 py-3 text-foreground border border-border/50">
+                <p className={getFontSizeClass()}>{messages[0].content}</p>
               </div>
             </div>
           </div>
 
-          {/* Quick Actions - Only show if first message */}
-          {messages.length === 1 && (
+          {messages.length === 1 && showHome && (
             <>
               <div className="grid grid-cols-2 gap-3 mb-4">
-                {quickActions.map((action, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleQuickAction(action.prompt)}
-                    className={`flex flex-col items-center justify-center gap-2 rounded-2xl p-4 text-center transition-colors ${action.color}`}
-                  >
-                    <span className="text-2xl">{action.icon}</span>
-                    <span className="text-sm font-medium">{action.label}</span>
-                  </button>
-                ))}
+                {quickActions.map((action, index) => {
+                  const IconComponent = action.icon
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => handleQuickAction(action.prompt)}
+                      className={`flex flex-col items-center justify-center gap-3 rounded-xl p-5 text-center transition-all hover:scale-[1.02] ${action.color}`}
+                    >
+                      <IconComponent className="w-6 h-6" strokeWidth={1.5} />
+                      <span className="text-xs font-medium leading-tight">{action.label}</span>
+                    </button>
+                  )
+                })}
               </div>
 
-              <div className="flex justify-center mb-6">
-                <button
-                  onClick={handleDailyMessage}
-                  className="flex items-center gap-3 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 px-6 py-4 text-white font-semibold shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
-                >
-                  <Sparkles className="w-5 h-5" />
-                  <span>Minha Mensagem Diária!</span>
-                  <Sparkles className="w-5 h-5" />
-                </button>
+              <div className="flex flex-col items-center gap-4 mb-6">
+                <div className="relative w-full">
+                  <button
+                    onClick={() => setShowEmotionFilter(!showEmotionFilter)}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-muted/50 hover:bg-muted border border-border/50 px-4 py-2.5 text-foreground font-medium shadow-sm hover:shadow transition-all"
+                  >
+                    <Filter className="w-4 h-4" strokeWidth={1.5} />
+                    <span className="text-sm">Filtrar por Emoção</span>
+                  </button>
+
+                  {showEmotionFilter && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowEmotionFilter(false)} />
+                      <div className="absolute top-full mt-2 left-0 right-0 bg-background border border-border rounded-xl shadow-xl p-2 z-20 max-h-80 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                        {emotionOptions.map((emotion, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleEmotionSelect(emotion.prompt)}
+                            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-muted/70 transition-colors text-left"
+                          >
+                            <span className="text-2xl">{emotion.emoji}</span>
+                            <span className="text-sm font-medium text-foreground">{emotion.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="w-full flex justify-center">
+                  <button
+                    onClick={handleDailyMessage}
+                    className="relative flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/15 to-primary/10 hover:from-primary/25 hover:via-primary/20 hover:to-primary/15 border-[3px] border-primary/40 px-10 py-6 text-primary font-bold shadow-lg hover:shadow-xl transition-all hover:scale-[1.03] active:scale-[0.98] min-w-[280px]"
+                  >
+                    <Sparkles className="w-7 h-7 animate-pulse" strokeWidth={2.5} />
+                    <span className="text-lg tracking-wide">Minha Mensagem Diária</span>
+                    <Sparkles className="w-7 h-7 animate-pulse" strokeWidth={2.5} />
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -410,32 +538,43 @@ export function MomentoSagrado() {
               className={`flex gap-3 mb-4 ${message.role === "user" ? "justify-end" : "justify-start"}`}
             >
               {message.role === "assistant" && (
-                <div
-                  className="w-10 h-10 shrink-0 rounded-full bg-cover bg-center"
-                  style={{
-                    backgroundImage:
-                      'url("https://lh3.googleusercontent.com/aida-public/AB6AXuAjHjWz8I-HLu6MEGnIcKeQZPvajYHHbHdtP512kvfvdNBmA1WLvuKao9JbnLW1t5DTj_lz8iR0-QrQyQDWD75_TjdbVLvclWsmCnOlMV1XxKDC-hacXbOPlWelNgv91VrBGZxPo0_EKh4jaV5JLfJHjyFXXCII5bFoThw_pqUKBZ6E0Ww-cE4ILN7ny-lgIpd0lnycmqOzHvdhym-WIapqh4oQSyYoQnv0w4Xh2yD2TI2mXyKhZ_1e3cogm8Hc1rLwohnTkrLG764")',
-                  }}
-                />
-              )}
-              <div
-                className={`max-w-[75%] rounded-2xl px-4 py-3 ${
-                  message.role === "user" ? "bg-primary text-primary-foreground" : "bg-primary/10 text-foreground"
-                }`}
-              >
-                <div className="text-sm leading-relaxed">
-                  {message.role === "assistant" ? formatMessageContent(message.content) : message.content}
+                <div className="w-10 h-10 shrink-0 rounded-full bg-primary/5 flex items-center justify-center border border-primary/10">
+                  <Sparkles className="w-6 h-6 text-primary" strokeWidth={1.5} />
                 </div>
-                {message.role === "assistant" && shareContent && index === messages.length - 2 && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={openShareModal}
-                    className="mt-3 gap-2 bg-primary/20 hover:bg-primary/30"
-                  >
-                    <Share2 className="w-4 h-4" />
-                    Compartilhar
-                  </Button>
+              )}
+              <div className="flex flex-col gap-2 max-w-[75%]">
+                <div
+                  className={`rounded-2xl px-4 py-3 border ${
+                    message.role === "user"
+                      ? "bg-primary/10 text-foreground border-primary/20"
+                      : "bg-muted/50 text-foreground border-border/50"
+                  }`}
+                >
+                  <div className={`${getFontSizeClass()} leading-relaxed`}>
+                    {message.role === "assistant" ? formatMessageContent(message.content) : message.content}
+                  </div>
+                </div>
+                {message.role === "assistant" && (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCopyMessage(message.content)}
+                      className="h-8 px-2 hover:bg-primary/5"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </Button>
+                    {shareContent && index === messages.length - 2 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={openShareModal}
+                        className="h-8 px-2 hover:bg-primary/5"
+                      >
+                        <Share2 className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -443,14 +582,10 @@ export function MomentoSagrado() {
 
           {isLoading && (
             <div className="flex gap-3 mb-4">
-              <div
-                className="w-10 h-10 shrink-0 rounded-full bg-cover bg-center"
-                style={{
-                  backgroundImage:
-                    'url("https://lh3.googleusercontent.com/aida-public/AB6AXuAjHjWz8I-HLu6MEGnIcKeQZPvajYHHbHdtP512kvfvdNBmA1WLvuKao9JbnLW1t5DTj_lz8iR0-QrQyQDWD75_TjdbVLvclWsmCnOlMV1XxKDC-hacXbOPlWelNgv91VrBGZxPo0_EKh4jaV5JLfJHjyFXXCII5bFoThw_pqUKBZ6E0Ww-cE4ILN7ny-lgIpd0lnycmqOzHvdhym-WIapqh4oQSyYoQnv0w4Xh2yD2TI2mXyKhZ_1e3cogm8Hc1rLwohnTkrLG764")',
-                }}
-              />
-              <div className="rounded-2xl bg-primary/10 px-4 py-3">
+              <div className="w-10 h-10 shrink-0 rounded-full bg-primary/5 flex items-center justify-center border border-primary/10">
+                <Sparkles className="w-6 h-6 text-primary" strokeWidth={1.5} />
+              </div>
+              <div className="rounded-2xl bg-muted/50 px-4 py-3 border border-border/50">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="w-5 h-5 animate-spin" />
                   Pensando...
@@ -462,7 +597,7 @@ export function MomentoSagrado() {
         </div>
 
         {/* Input Area */}
-        <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur-sm pb-6">
+        <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur-sm pb-6 border-t border-border/50">
           <div className="flex items-center gap-2 px-4 pt-4">
             <input
               type="text"
@@ -475,20 +610,29 @@ export function MomentoSagrado() {
                 }
               }}
               placeholder="Ou digite sua mensagem..."
-              className="flex-1 rounded-full border-0 bg-primary/10 px-4 py-3 text-sm text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-primary outline-none"
+              className="flex-1 rounded-full border border-border/50 bg-muted/30 px-4 py-3 text-sm text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary/30 outline-none transition-all"
               disabled={isLoading}
             />
             <Button
               onClick={() => handleSend()}
               disabled={!input.trim() || isLoading}
               size="icon"
-              className="h-12 w-12 rounded-full shrink-0"
+              className="h-12 w-12 rounded-full shrink-0 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20"
             >
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
             </Button>
           </div>
         </div>
       </div>
+
+      <SettingsPanel
+        open={isSettingsOpen}
+        onOpenChange={setIsSettingsOpen}
+        onPreferencesChange={(prefs) => {
+          setPreferences(prefs)
+          savePreferences(prefs)
+        }}
+      />
 
       {/* Share Modal */}
       <Dialog open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>
@@ -504,7 +648,7 @@ export function MomentoSagrado() {
             )}
             <canvas ref={canvasRef} className="w-full rounded-lg bg-muted" style={{ aspectRatio: "9/16" }} />
             <div className="flex gap-2">
-              <Button onClick={handleShare} className="flex-1 gap-2">
+              <Button onClick={handleShareImage} className="flex-1 gap-2">
                 <Download className="w-4 h-4" />
                 Baixar / Compartilhar
               </Button>
