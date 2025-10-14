@@ -1,6 +1,12 @@
 import { cansacoVerses } from "./cansaco"
 import { alegriaVerses } from "./alegria"
 import { ansiedadeVerses } from "./ansiedade"
+import { feVerses } from "./fe"
+import { esperancaVerses } from "./esperanca"
+import { medoVerses } from "./medo"
+import { amorVerses } from "./amor"
+import { solidaoVerses } from "./solidao"
+import { gratidaoVerses } from "./gratidao"
 
 export interface Verse {
   ref: string
@@ -16,7 +22,12 @@ export const versesDatabase: VerseDatabase = {
   cansaco: cansacoVerses,
   alegria: alegriaVerses,
   ansiedade: ansiedadeVerses,
-  // Mais temas serão adicionados aqui
+  fe: feVerses,
+  esperanca: esperancaVerses,
+  medo: medoVerses,
+  amor: amorVerses,
+  solidao: solidaoVerses,
+  gratidao: gratidaoVerses,
 }
 
 // Função para buscar versículos aleatórios de um tema
