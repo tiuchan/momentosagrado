@@ -19,15 +19,6 @@ export const metadata: Metadata = {
   title: "Momento Sagrado",
   description: "Um ombro amigo e a sabedoria da Palavra",
   generator: "v0.app",
-  icons: {
-    icon: "/favicon.ico", // favicon principal
-    shortcut: "/favicon.ico", // atalho para navegadores antigos
-    apple: "/favicon.png", // ícone para Apple devices
-  },
-  manifest: {
-    name: "Momento Sagrado",       // nome completo do PWA
-    short_name: "Momento Sagrado", // nome do atalho com espaços
-  },
 }
 
 export default function RootLayout({
@@ -37,9 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body
-        className={`font-sans ${GeistSans.variable} ${GeistMono.variable} ${crimsonText.variable}`}
-      >
+      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} ${crimsonText.variable}`}>
         <Suspense fallback={null}>
           {children}
           <Toaster />
