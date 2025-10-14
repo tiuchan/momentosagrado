@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getAvailableThemes, getVerseCount } from "@/lib/verses"
+import { getAvailableThemes, getVerseCount, getRandomVersesFromAll } from "@/lib/verses"
 
 function detectGender(message: string): "feminine" | "masculine" | "neutral" {
   const lowerMessage = message.toLowerCase()
@@ -40,6 +40,15 @@ export async function POST(request: NextRequest) {
 
     const detectedGender = detectGender(message)
 
+    const isDailyMessage =
+      message.toLowerCase().includes("mensagem diária") || message.toLowerCase().includes("mensagem diaria")
+
+    let selectedVerses = ""
+    if (isDailyMessage) {
+      const verses = getRandomVersesFromAll(2) // Get 2 random verses from entire database
+      selectedVerses = verses.map((v) => `"${v.text}" (${v.ref})`).join("\n\n")
+    }
+
     // Estatísticas dos versículos disponíveis
     const themes = getAvailableThemes()
     const verseStats = themes.map((theme) => `${theme}: ${getVerseCount(theme)} versículos`).join(", ")
@@ -48,6 +57,19 @@ export async function POST(request: NextRequest) {
 
 BANCO DE VERSÍCULOS DISPONÍVEL:
 Você tem acesso a um extenso banco de versículos organizados por temas: ${verseStats}
+
+${
+  isDailyMessage
+    ? `
+⚠️ MENSAGEM DIÁRIA - USE ESTES VERSÍCULOS ESPECÍFICOS ⚠️
+Você DEVE usar um ou ambos os versículos abaixo na sua resposta. Estes foram selecionados aleatoriamente do banco de dados:
+
+${selectedVerses}
+
+IMPORTANTE: Cite o versículo EXATAMENTE como está acima, incluindo a referência.
+`
+    : ""
+}
 
 ⚠️ REGRA CRÍTICA DE VARIAÇÃO ⚠️
 NUNCA repita os mesmos versículos! A cada nova conversa, você DEVE escolher versículos DIFERENTES, mesmo que o tema seja similar. Explore toda a riqueza da Bíblia disponível no banco de dados.
