@@ -54,3 +54,19 @@ export function getAvailableThemes(): string[] {
 export function getVerseCount(theme: string): number {
   return versesDatabase[theme]?.length || 0
 }
+
+// Função para buscar versículos aleatórios de todos os temas combinados
+export function getAllVerses(): Verse[] {
+  const allVerses: Verse[] = []
+  Object.values(versesDatabase).forEach((themeVerses) => {
+    allVerses.push(...themeVerses)
+  })
+  return allVerses
+}
+
+// Função para buscar versículos aleatórios de toda a base de dados
+export function getRandomVersesFromAll(count = 3): Verse[] {
+  const allVerses = getAllVerses()
+  const shuffled = [...allVerses].sort(() => Math.random() - 0.5)
+  return shuffled.slice(0, Math.min(count, shuffled.length))
+}
