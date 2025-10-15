@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getAvailableThemes, getVerseCount, getRandomVersesFromAll, getRandomVerses } from "@/lib/verses"
+import { getRandomOpening, getRandomTransition, getRandomClosing } from "@/lib/dialogue-system"
 
 function detectGender(message: string): "feminine" | "masculine" | "neutral" {
   const lowerMessage = message.toLowerCase()
@@ -31,36 +32,110 @@ function detectGender(message: string): "feminine" | "masculine" | "neutral" {
 function detectTheme(message: string): string | null {
   const lowerMessage = message.toLowerCase()
 
-  // Theme detection patterns
+  // Theme detection patterns - expandido para cobrir todos os cards
   const themePatterns: Record<string, RegExp[]> = {
     cansaco: [
       /\b(cansad[oa]|exaust[oa]|fatigad[oa]|esgotad[oa]|sem\s+energia|sem\s+forças)\b/,
-      /\bestou\s+cansad[oa]\b/,
+      /\bestou\s+(muito\s+)?cansad[oa]\b/,
       /\bme\s+sinto\s+cansad[oa]\b/,
       /\bpreciso\s+de\s+descanso\b/,
+      /\bn[ãa]o\s+consigo\s+dormir\b/,
+      /\bins[ôo]nia\b/,
     ],
     ansiedade: [
       /\b(ansios[oa]|preocupad[oa]|nervos[oa]|estressad[oa]|angustiad[oa])\b/,
-      /\bestou\s+ansios[oa]\b/,
+      /\bestou\s+(sentindo\s+)?ansios[oa]\b/,
       /\bme\s+sinto\s+ansios[oa]\b/,
       /\bansiedade\b/,
+      /\bsentindo\s+ansiedade\b/,
+      /\bpensamentos\s+negativos\b/,
+      /\bconfus[oa]\s+sobre\b/,
     ],
     alegria: [
-      /\b(alegr[ea]|feliz|contente|grat[oa]|celebr)\b/,
+      /\b(alegr[ea]|feliz|contente|celebr)\b/,
       /\bestou\s+feliz\b/,
-      /\bquero\s+celebrar\b/,
+      /\bquero\s+(sentir\s+)?alegria\b/,
       /\balegria\b/,
+      /\bquero\s+celebrar\b/,
+      /\balegria\s+no\s+senhor\b/,
+      /\blouvor\b/,
+      /\badora[çc][ãa]o\b/,
+      /\bmomento\s+de\s+louvor\b/,
     ],
-    medo: [/\b(medo|assustad[oa]|amedrontad[oa]|temor|receios[oa])\b/, /\bestou\s+com\s+medo\b/, /\btenho\s+medo\b/],
+    medo: [
+      /\b(medo|assustad[oa]|amedrontad[oa]|temor|receios[oa])\b/,
+      /\bestou\s+com\s+medo\b/,
+      /\btenho\s+medo\b/,
+      /\bsentindo\s+medo\b/,
+      /\bpreciso\s+de\s+prote[çc][ãa]o\b/,
+      /\bprote[çc][ãa]o\s+divina\b/,
+      /\bpreciso\s+de\s+coragem\b/,
+    ],
     solidao: [
       /\b(sozinho|sozinha|solid[ãa]o|isolad[oa]|abandonad[oa])\b/,
       /\bestou\s+sozinho\b/,
       /\bme\s+sinto\s+s[óo]\b/,
+      /\btriste\b/,
+      /\bestou\s+(me\s+sentindo\s+)?triste\b/,
+      /\bcora[çc][ãa]o\s+(est[áa]\s+)?partido\b/,
+      /\bpassando\s+por\s+dificuldades\b/,
     ],
-    fe: [/\b(f[ée]|cren[çc]a|acreditar|confian[çc]a\s+em\s+deus)\b/, /\bfortalecer\s+minha\s+f[ée]\b/],
-    esperanca: [/\b(esperan[çc]a|esperan[çc]oso|futuro|renova[çc][ãa]o)\b/, /\bpreciso\s+de\s+esperan[çc]a\b/],
-    amor: [/\b(amor|amad[oa]|amar|carinho)\b/, /\bamor\s+de\s+deus\b/],
-    gratidao: [/\b(gratid[ãa]o|grat[oa]|agradecer|obrigad[oa])\b/, /\bexpresar\s+gratid[ãa]o\b/],
+    fe: [
+      /\b(f[ée]|cren[çc]a|acreditar|confian[çc]a\s+em\s+deus)\b/,
+      /\bfortalecer\s+(minha\s+)?f[ée]\b/,
+      /\bpreciso\s+de\s+f[ée]\b/,
+      /\bmomento\s+de\s+ora[çc][ãa]o\b/,
+      /\bquero\s+(um\s+momento\s+de\s+)?ora[çc][ãa]o\b/,
+      /\bd[úu]vidas\s+espirituais\b/,
+      /\brenova[çc][ãa]o\s+espiritual\b/,
+      /\bavivamento\s+espiritual\b/,
+      /\bcrescer\s+espiritualmente\b/,
+      /\bpresen[çc]a\s+de\s+deus\b/,
+      /\bsentir\s+a\s+presen[çc]a\b/,
+      /\bvit[óo]ria\s+espiritual\b/,
+      /\bmilagre\b/,
+    ],
+    esperanca: [
+      /\b(esperan[çc]a|esperan[çc]oso|futuro|renova[çc][ãa]o)\b/,
+      /\bpreciso\s+de\s+esperan[çc]a\b/,
+      /\bbusco\s+esperan[çc]a\b/,
+      /\bencorajamento\b/,
+      /\bpreciso\s+de\s+encorajamento\b/,
+      /\bpreciso\s+de\s+for[çc]a\b/,
+      /\bfor[çc]a\s+para\s+continuar\b/,
+      /\bpreciso\s+de\s+dire[çc][ãa]o\b/,
+      /\bdire[çc][ãa]o\s+na\s+vida\b/,
+      /\bprop[óo]sito\b/,
+      /\bqual\s+[ée]\s+meu\s+prop[óo]sito\b/,
+      /\bnovo\s+come[çc]o\b/,
+      /\btransforma[çc][ãa]o\b/,
+      /\bquero\s+ser\s+transformad[oa]\b/,
+    ],
+    amor: [
+      /\b(amor|amad[oa]|amar|carinho)\b/,
+      /\bamor\s+de\s+deus\b/,
+      /\bsentir\s+o\s+amor\s+de\s+deus\b/,
+      /\bperd[ãa]o\b/,
+      /\baprender\s+a\s+perdoar\b/,
+      /\breconcilia[çc][ãa]o\b/,
+      /\brelacionamentos\b/,
+      /\bajuda\s+nos\s+relacionamentos\b/,
+      /\bfam[íi]lia\b/,
+      /\bsabedoria\s+para\s+(minha\s+)?fam[íi]lia\b/,
+    ],
+    gratidao: [
+      /\b(gratid[ãa]o|grat[oa]|agradecer|obrigad[oa]|b[êe]n[çc][ãa]os?)\b/,
+      /\bexpresar\s+gratid[ãa]o\b/,
+      /\bquero\s+expressar\s+gratid[ãa]o\b/,
+      /\bgratid[ãa]o\s+e\s+paz\b/,
+      /\bagradecer\s+pelas\s+b[êe]n[çc][ãa]os\b/,
+      /\bpaz\s+interior\b/,
+      /\bencontrar\s+paz\b/,
+      /\bbusco\s+paz\b/,
+      /\bquietude\b/,
+      /\bmomento\s+de\s+quietude\b/,
+      /\bmedita[çc][ãa]o\b/,
+    ],
   }
 
   // Check each theme pattern
@@ -95,12 +170,14 @@ export async function POST(request: NextRequest) {
       const verses = getRandomVersesFromAll(2)
       selectedVerses = verses.map((v) => `"${v.text}" (${v.ref})`).join("\n\n")
     } else if (detectedTheme) {
-      // Select 3-4 random verses from the detected theme
       const verses = getRandomVerses(detectedTheme, 4)
       selectedVerses = verses.map((v) => `"${v.text}" (${v.ref})`).join("\n\n")
     }
 
-    // Estatísticas dos versículos disponíveis
+    const randomOpening = getRandomOpening()
+    const randomTransition = getRandomTransition()
+    const randomClosing = getRandomClosing()
+
     const themes = getAvailableThemes()
     const verseStats = themes.map((theme) => `${theme}: ${getVerseCount(theme)} versículos`).join(", ")
 
@@ -152,46 +229,33 @@ ${
 `
 }
 
-🌟 VARIAÇÕES DE ABERTURA - NUNCA REPITA A MESMA ESTRUTURA:
+🌟 VARIAÇÕES DE DIÁLOGO SELECIONADAS PARA ESTA RESPOSTA:
 
-Tipo 1 - Reconhecimento Direto do Sentimento:
-${detectedGender === "feminine" ? '"Sei que você está passando por um momento difícil, querida..."' : detectedGender === "masculine" ? '"Sei que você está passando por um momento difícil, querido..."' : '"Sei que você está passando por um momento difícil..."'}
+ABERTURA OBRIGATÓRIA (use esta frase específica para iniciar):
+"${randomOpening}"
 
-Tipo 2 - Empatia Imediata:
-${detectedGender === "feminine" ? '"Entendo sua dor, minha amiga..."' : detectedGender === "masculine" ? '"Entendo sua dor, meu amigo..."' : '"Entendo o que você está sentindo..."'}
+TRANSIÇÃO OBRIGATÓRIA (use ao introduzir o versículo):
+"${randomTransition}"
 
-Tipo 3 - Afirmação de Esperança:
-"Há luz no fim do túnel, e quero compartilhar isso com você..."
+FECHAMENTO (use como inspiração para criar um parágrafo conclusivo):
+"${randomClosing}"
 
-Tipo 4 - Acolhimento Caloroso:
-${detectedGender === "feminine" ? '"Que bom que você veio conversar, querida..."' : detectedGender === "masculine" ? '"Que bom que você veio conversar, querido..."' : '"Que bom que você está aqui..."'}
+⚠️ IMPORTANTE SOBRE AS VARIAÇÕES:
+- ABERTURA e TRANSIÇÃO: Use EXATAMENTE como fornecidas
+- FECHAMENTO: Use a frase como INSPIRAÇÃO para criar um parágrafo conclusivo de 2-3 frases que:
+  * Incorpore naturalmente a essência da frase de fechamento
+  * Ofereça uma conclusão calorosa e encorajadora
+  * Reforce a mensagem principal da conversa
+  * Deixe a pessoa com esperança e direção prática
 
-Tipo 5 - Reconhecimento de Coragem:
-${detectedGender === "feminine" ? '"É preciso coragem para compartilhar o que você está sentindo, e admiro isso em você..."' : detectedGender === "masculine" ? '"É preciso coragem para compartilhar o que você está sentindo, e admiro isso em você..."' : '"É preciso coragem para buscar ajuda, e isso já é um grande passo..."'}
-
-Tipo 6 - Conexão Espiritual:
-"Deus vê seu coração neste momento, e Ele tem uma palavra especial para você..."
-
-Tipo 7 - Validação do Sentimento:
-${detectedGender === "feminine" ? '"O que você está sentindo é real e válido, querida..."' : detectedGender === "masculine" ? '"O que você está sentindo é real e válido, querido..."' : '"Seus sentimentos são válidos e compreensíveis..."'}
-
-Tipo 8 - Promessa de Companhia:
-"Você não precisa enfrentar isso sozinho. Vamos caminhar juntos..."
-
-⚠️ IMPORTANTE: Escolha UM tipo diferente a cada conversa. NUNCA use "meu querido amigo" ou "minha querida amiga" como padrão repetitivo!
-
-ESTILO DE COMUNICAÇÃO (inspirado em Junior Rostirola com VARIAÇÕES ILIMITADAS):
-- Use o estilo pastoral de Junior Rostirola como BASE, mas crie variações únicas em cada resposta
-- Varie a estrutura: às vezes mais poética, às vezes mais direta, às vezes mais contemplativa
-- Alterne entre diferentes metáforas e imagens (não repita as mesmas)
+ESTILO DE COMUNICAÇÃO (inspirado em Junior Rostirola):
 - Use linguagem direta, pessoal e acolhedora - fale com "você" de forma próxima
 - Seja encorajador e cheio de esperança - foque em renovação, novas oportunidades e transformação
 - Reconheça as dificuldades com empatia antes de oferecer esperança
 - Use frases impactantes e memoráveis que tocam o coração
 - Seja prático e orientado à ação - encoraje decisões e perseverança
-- Incorpore metáforas e imagens poéticas quando apropriado (mas varie sempre)
+- Incorpore metáforas e imagens poéticas quando apropriado
 - Mantenha um tom pastoral caloroso, como um amigo sábio que se importa genuinamente
-- NUNCA repita exatamente a mesma estrutura ou frases - seja criativo e autêntico
 - ADAPTE TODO O TEXTO ao gênero identificado (ou mantenha neutro se não identificado)
 
 IMPORTANTE:
@@ -204,14 +268,14 @@ IMPORTANTE:
 - Adapte RIGOROSAMENTE o gênero da linguagem conforme detectado (ou use neutro)
 - NÃO inclua "NVI" ou outras siglas de tradução - cite apenas o livro, capítulo e versículo
 
-FORMATO DE RESPOSTA:
-Parágrafo introdutório acolhedor reconhecendo a situação (com gênero apropriado e abertura VARIADA - nunca repita).
+FORMATO DE RESPOSTA OBRIGATÓRIO:
+[Abertura obrigatória: "${randomOpening}"] + desenvolvimento do parágrafo reconhecendo a situação (com gênero apropriado).
 
-"Versículo completo da Bíblia" (Referência)
+[Transição obrigatória: "${randomTransition}"] "Versículo completo da Bíblia" (Referência)
 
 Parágrafo de reflexão conectando o versículo com a situação de forma pessoal e esperançosa.
 
-Parágrafo final de encorajamento prático e transformador.
+[Parágrafo conclusivo: Crie 2-3 frases que incorporem naturalmente a essência de "${randomClosing}", oferecendo uma conclusão calorosa, encorajadora e prática que reforce a mensagem principal e deixe a pessoa com esperança e direção.]
 
 [INICIAR RESUMO PARA IMAGEM]
 "Versículo completo da Bíblia com referência"
